@@ -1,0 +1,103 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EchoEstate — GPU Worker (LOCAL mode)
+# Target: A100 MIG slice (sm_80)
+# Pipeline: local video → ffmpeg → COLMAP → OpenSplat → splat.ply (no R2)
+#
+# Build:
+#   docker build -f Dockerfile.local -t echostate-worker-local:latest .
+#
+# Run:
+#   docker run --gpus all \
+#     -v /path/to/video.mp4:/input/video.mp4 \
+#     -v /path/to/output:/output \
+#     echostate-worker-local:latest \
+#     --video /input/video.mp4 --output /output --steps 3000 --keep-work
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM nvidia/cuda:12.1.1-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# ── System dependencies ───────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake ninja-build git curl wget unzip \
+    python3 python3-pip python3-dev \
+    ffmpeg \
+    libboost-program-options-dev libboost-filesystem-dev \
+    libboost-graph-dev libboost-system-dev \
+    libeigen3-dev libsuitesparse-dev libfreeimage-dev \
+    libmetis-dev libgoogle-glog-dev libgflags-dev \
+    libsqlite3-dev libglew-dev \
+    qtbase5-dev libqt5opengl5-dev \
+    libcgal-dev libflann-dev libceres-dev \
+    libopencv-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Python packages ───────────────────────────────────────────────────────────
+RUN pip3 install --no-cache-dir \
+    torch==2.1.0+cu121 torchvision==0.16.0+cu121 \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# No boto3 — local mode never touches R2
+RUN pip3 install --no-cache-dir \
+    numpy \
+    opencv-python-headless
+
+# ── Build COLMAP 3.9.1 from source ───────────────────────────────────────────
+ARG COLMAP_VERSION=3.9.1
+RUN git clone --depth 1 --branch ${COLMAP_VERSION} \
+        https://github.com/colmap/colmap.git /tmp/colmap \
+    && cmake -S /tmp/colmap -B /tmp/colmap/build \
+        -GNinja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCUDA_ENABLED=ON \
+        -DCUDA_ARCHITECTURES="80" \
+        -DTESTS_ENABLED=OFF \
+    && ninja -C /tmp/colmap/build -j$(nproc) \
+    && ninja -C /tmp/colmap/build install \
+    && rm -rf /tmp/colmap
+
+# ── Build OpenSplat from source ───────────────────────────────────────────────
+ARG OPENSPLAT_VERSION=v1.1.1
+RUN git clone --depth 1 --branch ${OPENSPLAT_VERSION} \
+        https://github.com/pierotofy/OpenSplat.git /tmp/opensplat \
+    && TORCH_CMAKE=$(python3 -c "import torch; print(torch.utils.cmake_prefix_path)") \
+    && cmake -S /tmp/opensplat -B /tmp/opensplat/build \
+        -GNinja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_PREFIX_PATH="$TORCH_CMAKE" \
+        -DCUDA_ARCHITECTURES="80" \
+    && ninja -C /tmp/opensplat/build -j$(nproc) \
+    && cp /tmp/opensplat/build/opensplat /usr/local/bin/opensplat \
+    && rm -rf /tmp/opensplat
+
+# ── Verify binaries ───────────────────────────────────────────────────────────
+RUN colmap --version \
+    && opensplat --help > /dev/null 2>&1 || true \
+    && ffmpeg -version | head -1 \
+    && python3 -c "import torch; print('CUDA available:', torch.cuda.is_available())"
+
+# ── Copy worker scripts ───────────────────────────────────────────────────────
+WORKDIR /worker
+COPY extract_frames.py .
+COPY process.py .
+
+# ── Runtime defaults ──────────────────────────────────────────────────────────
+ENV PIPELINE_MODE=local
+ENV OUTPUT_DIR=/output
+ENV FPS=2.0
+ENV STEPS=3000
+ENV MAX_DIM=960
+ENV MAX_FRAMES=150
+
+RUN mkdir -p /output /input
+
+# ── Entrypoint ────────────────────────────────────────────────────────────────
+# Typical usage:
+#   docker run --gpus all \
+#     -v /host/video.mp4:/input/video.mp4 \
+#     -v /host/output:/output \
+#     echostate-worker-local:latest \
+#     --video /input/video.mp4 --output /output
+ENTRYPOINT ["python3", "/worker/process.py", "--mode", "local"]

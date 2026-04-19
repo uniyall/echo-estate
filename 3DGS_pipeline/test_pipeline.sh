@@ -11,8 +11,7 @@
 #
 # Usage:
 #   chmod +x test_pipeline.sh
-#   ./test_pipeline.sh                        # uses built-in synthetic test
-#   ./test_pipeline.sh /path/to/your/room.mp4 # uses your own video
+#   ./test_pipeline.sh /path/to/your/room.mp4
 #
 # What "success" looks like:
 #   - A splat.ply file in ./test_output/
@@ -25,7 +24,7 @@ set -e   # exit immediately on any error
 VIDEO_PATH="${1:-}"
 OUTPUT_DIR="./test_output"
 WORK_DIR="$OUTPUT_DIR/work"
-STEPS=3000   # fast viability test — not full quality
+STEPS="${STEPS:-3000}"   # override with: STEPS=10000 ./test_pipeline.sh ...
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -61,9 +60,17 @@ if ! command -v colmap &>/dev/null; then
     sudo apt-get install -y colmap
 fi
 
-COLMAP_VERSION=$(colmap --version 2>&1 | head -1)
-echo "  Version: $COLMAP_VERSION"
-echo "  PASS: COLMAP installed"
+COLMAP_MAJOR=$(colmap --version 2>&1 | grep -oP '\d+\.\d+' | head -1)
+echo "  Version: $COLMAP_MAJOR"
+
+# Warn if below PRD requirement (3.9+); Docker compiles from source so this is bare-metal only
+if python3 -c "import sys; sys.exit(0 if float('$COLMAP_MAJOR') >= 3.9 else 1)" 2>/dev/null; then
+    echo "  PASS: COLMAP >= 3.9"
+else
+    echo "  WARNING: COLMAP $COLMAP_MAJOR < 3.9 (PRD requires 3.9+)"
+    echo "           For production, COLMAP is compiled from source in Docker."
+    echo "           This bare-metal version may produce slightly different results."
+fi
 echo ""
 
 # ── Check 3: OpenSplat ─────────────────────────────────────────────────────────
@@ -74,7 +81,6 @@ if ! command -v opensplat &>/dev/null; then
     echo "  This will take 5-10 minutes on first run."
     echo ""
 
-    # Check build deps
     for dep in cmake ninja-build git; do
         if ! command -v "$dep" &>/dev/null; then
             echo "  Installing $dep..."
@@ -82,10 +88,10 @@ if ! command -v opensplat &>/dev/null; then
         fi
     done
 
-    # Install libtorch if not present
     if ! python3 -c "import torch; print(torch.__version__)" &>/dev/null; then
-        echo "  Installing PyTorch (CUDA 11.8)..."
-        pip3 install torch==2.0.1+cu118 --index-url https://download.pytorch.org/whl/cu118 -q
+        echo "  Installing PyTorch (CUDA 12.1)..."
+        pip3 install torch==2.1.0+cu121 torchvision==0.16.0+cu121 \
+            --index-url https://download.pytorch.org/whl/cu121 -q
     fi
 
     TORCH_CMAKE=$(python3 -c "import torch; print(torch.utils.cmake_prefix_path)")
@@ -97,7 +103,7 @@ if ! command -v opensplat &>/dev/null; then
     cmake .. -GNinja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_PREFIX_PATH="$TORCH_CMAKE" \
-        -DCUDA_ARCHITECTURES="80" \
+        -DCUDA_ARCHITECTURES="80;89" \
         2>&1 | tail -5
     ninja -j$(nproc) 2>&1 | tail -5
     sudo cp opensplat /usr/local/bin/opensplat
@@ -123,28 +129,19 @@ echo ""
 echo "[ 5/5 ] Preparing video input..."
 
 if [ -z "$VIDEO_PATH" ]; then
-    echo "  No video provided — downloading a small test video (~10MB)"
-    echo "  (This is a Creative Commons room walkthrough from Wikimedia)"
+    echo "  No video provided."
     echo ""
-
-    VIDEO_PATH="$OUTPUT_DIR/test_input.mp4"
-    mkdir -p "$OUTPUT_DIR"
-
-    # Download a short room walkthrough video for testing
-    # Using a CC-licensed video from a public source
-    curl -L -o "$VIDEO_PATH" \
-        "https://upload.wikimedia.org/wikipedia/commons/transcoded/6/6c/Giza_pyramid_complex_-_360%C2%B0_panorama_walk_through_%28cropped%29.webm/Giza_pyramid_complex_-_360%C2%B0_panorama_walk_through_%28cropped%29.webm.360p.webm" \
-        --progress-bar 2>&1 || {
-            echo ""
-            echo "  Download failed. Please provide your own video:"
-            echo "    ./test_pipeline.sh /path/to/room.mp4"
-            echo ""
-            echo "  Tips for a good test video:"
-            echo "    - 30-90 seconds of slow walking through a room"
-            echo "    - Good lighting, no motion blur"
-            echo "    - Shot on any smartphone"
-            exit 1
-        }
+    echo "  Please supply your own test video:"
+    echo "    ./test_pipeline.sh /path/to/your/room.mp4"
+    echo ""
+    echo "  Requirements for a good test video:"
+    echo "    - 30–90 seconds of slow walking through a room"
+    echo "    - Good lighting, no motion blur, no fast pans"
+    echo "    - Shot on any smartphone in landscape orientation"
+    echo "    - Camera should move continuously — do not pan from a fixed point"
+    echo ""
+    echo "  Cannot proceed without a video. Exiting."
+    exit 1
 fi
 
 if [ ! -f "$VIDEO_PATH" ]; then
@@ -167,6 +164,7 @@ mkdir -p "$OUTPUT_DIR"
 START_TIME=$(date +%s)
 
 python3 worker/process.py \
+    --mode local \
     --video "$VIDEO_PATH" \
     --output "$OUTPUT_DIR" \
     --fps 2.0 \
@@ -222,6 +220,11 @@ else
     echo "  File size looks healthy for a Gaussian Splat."
 fi
 
+echo ""
+echo "  Per-stage timing (from process.py JSON output):"
+echo "    Check the JSON lines above for per-stage 'total_time_s' values."
+echo "    To extract timing programmatically:"
+echo "      ./test_pipeline.sh /path/to/video.mp4 2>&1 | grep '\"total_time_s\"'"
 echo ""
 echo "  Next steps:"
 echo "    1. View the .ply in your browser:"
