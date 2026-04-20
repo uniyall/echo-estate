@@ -111,9 +111,9 @@ def download_video(url: str, dest_path: str) -> None:
         raise RuntimeError(f"Failed to download video from R2: {e}")
 
 
-def upload_to_r2(ply_path: str, property_id: str) -> str:
+def upload_to_r2(ply_path: str, property_id: str, cameras_json_path: str = None) -> dict:
     """
-    Upload the completed .ply file to Cloudflare R2.
+    Upload the completed .ply (and optional cameras.json) to Cloudflare R2.
     Imported lazily so local mode never requires boto3.
 
     Required env vars:
@@ -125,12 +125,8 @@ def upload_to_r2(ply_path: str, property_id: str) -> str:
     import boto3
     from botocore.client import Config
 
-    bucket     = os.environ["R2_BUCKET"]
-    endpoint   = os.environ["R2_ENDPOINT_URL"]
-    object_key = f"splats/{property_id}/splat.ply"
-
-    status("upload", "Uploading .ply to R2", {"bucket": bucket, "key": object_key})
-    t0 = time.time()
+    bucket   = os.environ["R2_BUCKET"]
+    endpoint = os.environ["R2_ENDPOINT_URL"]
 
     s3 = boto3.client(
         "s3",
@@ -141,17 +137,25 @@ def upload_to_r2(ply_path: str, property_id: str) -> str:
         region_name="auto",
     )
 
+    t0 = time.time()
+    uploads = {}
+
+    ply_key = f"splats/{property_id}/splat.ply"
+    status("upload", "Uploading splat.ply to R2", {"bucket": bucket, "key": ply_key})
     file_size_mb = os.path.getsize(ply_path) / (1024 * 1024)
-    s3.upload_file(ply_path, bucket, object_key)
+    s3.upload_file(ply_path, bucket, ply_key)
+    uploads["r2_url"] = f"{endpoint}/{bucket}/{ply_key}"
+    uploads["size_mb"] = round(file_size_mb, 1)
 
-    r2_url = f"{endpoint}/{bucket}/{object_key}"
+    if cameras_json_path and os.path.exists(cameras_json_path):
+        cam_key = f"splats/{property_id}/cameras.json"
+        status("upload", "Uploading cameras.json to R2", {"bucket": bucket, "key": cam_key})
+        s3.upload_file(cameras_json_path, bucket, cam_key)
+        uploads["cameras_json_r2_url"] = f"{endpoint}/{bucket}/{cam_key}"
 
-    status("upload", "Upload complete", {
-        "r2_url": r2_url,
-        "size_mb": round(file_size_mb, 1),
-        "upload_time_s": round(time.time() - t0, 1),
-    })
-    return r2_url
+    uploads["upload_time_s"] = round(time.time() - t0, 1)
+    status("upload", "Upload complete", uploads)
+    return uploads
 
 
 # ── Stage 1: Extract frames from video ────────────────────────────────────────
@@ -278,7 +282,7 @@ def stage_colmap(frames_dir: str, work_dir: str) -> tuple:
 
 # ── Stage 3: OpenSplat — Gaussian training ────────────────────────────────────
 
-def stage_opensplat(recon_dir: str, frames_dir: str, output_dir: str, steps: int = 3000) -> str:
+def stage_opensplat(recon_dir: str, frames_dir: str, output_dir: str, steps: int = 3000) -> tuple:
     """Trains a Gaussian Splat directly from the COLMAP workspace."""
     os.makedirs(output_dir, exist_ok=True)
     output_ply = os.path.join(output_dir, "splat.ply")
@@ -313,13 +317,33 @@ def stage_opensplat(recon_dir: str, frames_dir: str, output_dir: str, steps: int
     elif size_mb > 500:
         status("opensplat", f"NOTE: .ply is large ({size_mb:.1f} MB) — consider reducing steps for web delivery")
 
+    # OpenSplat writes cameras.json to the project dir; copy it next to the splat
+    cameras_json_path = None
+    for candidate in [
+        os.path.join(colmap_project, "cameras.json"),
+        os.path.join(output_dir, "cameras.json"),
+    ]:
+        if os.path.exists(candidate):
+            cameras_json_path = candidate
+            break
+
+    if cameras_json_path and cameras_json_path != os.path.join(output_dir, "cameras.json"):
+        dest = os.path.join(output_dir, "cameras.json")
+        shutil.copy2(cameras_json_path, dest)
+        cameras_json_path = dest
+
+    if cameras_json_path:
+        status("opensplat", "cameras.json found", {"cameras_json": cameras_json_path})
+    else:
+        status("opensplat", "WARNING: cameras.json not found — skipping")
+
     status("opensplat", "Training complete", {
         "output_ply": output_ply,
         "size_mb": round(size_mb, 1),
         "training_time_s": round(time.time() - t0, 1),
     })
 
-    return output_ply
+    return output_ply, cameras_json_path
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -404,13 +428,13 @@ def main():
     t_total = time.time()
 
     try:
-        frames_dir            = stage_extract(video_path, work_dir, fps, max_dim, max_frames)
-        recon_dir, frames_dir = stage_colmap(frames_dir, work_dir)
-        ply_path              = stage_opensplat(recon_dir, frames_dir, output_dir, steps)
+        frames_dir                       = stage_extract(video_path, work_dir, fps, max_dim, max_frames)
+        recon_dir, frames_dir            = stage_colmap(frames_dir, work_dir)
+        ply_path, cameras_json_path      = stage_opensplat(recon_dir, frames_dir, output_dir, steps)
 
-        r2_url = None
+        r2_uploads = {}
         if mode == "cloud":
-            r2_url = upload_to_r2(ply_path, property_id)
+            r2_uploads = upload_to_r2(ply_path, property_id, cameras_json_path)
         else:
             status("upload", "Skipping R2 upload (local mode)")
 
@@ -427,8 +451,8 @@ def main():
             "total_time_s": total_time,
             "total_time_min": round(total_time / 60, 1),
         }
-        if r2_url:
-            result["r2_url"] = r2_url   # RunPod reads this from the job output field
+        if r2_uploads:
+            result.update(r2_uploads)   # includes r2_url, cameras_json_r2_url, size_mb, upload_time_s
 
         status("pipeline", "SUCCESS", result)
         print(json.dumps(result), flush=True)
