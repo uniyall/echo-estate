@@ -70,6 +70,10 @@ RUN apt-get update && apt-get install -y \
 RUN pip3 install --no-cache-dir \
     boto3==1.34.0 
 
+# runpod required for Runpod serverless in cloud mode
+RUN pip3 install --no-cache-dir \
+    runpod 
+
 # ── Build Libtorch 2.60/cu12.4 from source ───────────────────────────────────────────────────────
 RUN wget -O /tmp/libtorch.zip https://download.pytorch.org/libtorch/cu124/libtorch-shared-with-deps-2.6.0%2Bcu124.zip \
     && unzip /tmp/libtorch.zip -d /opt \
@@ -131,6 +135,7 @@ RUN colmap --version \
 WORKDIR /worker
 COPY extract_frames.py .
 COPY process.py .
+COPY handler.py .
 
 # ── Runtime defaults (all overridable via RunPod env vars) ────────────────────
 ENV PIPELINE_MODE=cloud
@@ -145,4 +150,4 @@ ENV MAX_FRAMES=150
 
 RUN mkdir -p /output
 
-ENTRYPOINT ["python3", "/worker/process.py"]
+ENTRYPOINT ["python3", "/worker/handler.py"]
