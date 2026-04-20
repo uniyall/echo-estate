@@ -72,10 +72,39 @@ def run(cmd: list, label: str, cwd: str = None) -> subprocess.CompletedProcess:
     return result
 
 
+# def download_video(url: str, dest_path: str) -> None:
+#     """Download a video from a signed R2 URL to a local path."""
+#     try:
+#         urllib.request.urlretrieve(url, dest_path)
+#         size_mb = os.path.getsize(dest_path) / (1024 * 1024)
+#         status("download", f"Video downloaded ({size_mb:.1f} MB)", {"dest": dest_path})
+#     except Exception as e:
+#         raise RuntimeError(f"Failed to download video from R2: {e}")
+
+# def download_video(url: str, dest_path: str) -> None:
+#     """Download a video using curl (handles Cloudflare headers automatically)."""
+#     try:
+#         result = subprocess.run(
+#             ["curl", "-L", "-o", dest_path, url],
+#             capture_output=True, text=True
+#         )
+#         if result.returncode != 0:
+#             raise RuntimeError(result.stderr)
+#         size_mb = os.path.getsize(dest_path) / (1024 * 1024)
+#         status("download", f"Video downloaded ({size_mb:.1f} MB)", {"dest": dest_path})
+#     except Exception as e:
+#         raise RuntimeError(f"Failed to download video from R2: {e}")
+
 def download_video(url: str, dest_path: str) -> None:
-    """Download a video from a signed R2 URL to a local path."""
     try:
-        urllib.request.urlretrieve(url, dest_path)
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            }
+        )
+        with urllib.request.urlopen(req) as response, open(dest_path, "wb") as out_file:
+            out_file.write(response.read())
         size_mb = os.path.getsize(dest_path) / (1024 * 1024)
         status("download", f"Video downloaded ({size_mb:.1f} MB)", {"dest": dest_path})
     except Exception as e:

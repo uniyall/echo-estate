@@ -1,6 +1,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # EchoEstate — GPU Worker (CLOUD mode)
-# Target: RunPod RTX 4090 (sm_89)
+# Target: RunPod RTX 4090 (sm_89) and NVIDIA A100 (sm_80)
 # Pipeline: R2 download → ffmpeg → COLMAP → OpenSplat → splat.ply → R2 upload
 #
 # Build:
@@ -18,70 +18,114 @@
 #     echostate-worker-cloud:latest
 # ─────────────────────────────────────────────────────────────────────────────
 
-FROM nvidia/cuda:12.1.1-devel-ubuntu22.04
+FROM nvidia/cuda:12.4.1-devel-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 
 # ── System dependencies ───────────────────────────────────────────────────────
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential cmake ninja-build git curl wget unzip \
-    python3 python3-pip python3-dev \
-    ffmpeg \
-    libboost-program-options-dev libboost-filesystem-dev \
-    libboost-graph-dev libboost-system-dev \
-    libeigen3-dev libsuitesparse-dev libfreeimage-dev \
-    libmetis-dev libgoogle-glog-dev libgflags-dev \
-    libsqlite3-dev libglew-dev \
-    qtbase5-dev libqt5opengl5-dev \
-    libcgal-dev libflann-dev libceres-dev \
-    libopencv-dev \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y \
+    wget \
+    unzip \
+    gpg \
+    software-properties-common \
+    ca-certificates \
+    && wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc | gpg --dearmor -o /usr/share/keyrings/kitware-archive-keyring.gpg \
+    && echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy main' | tee /etc/apt/sources.list.d/kitware.list > /dev/null
 
-# ── Python packages ───────────────────────────────────────────────────────────
-RUN pip3 install --no-cache-dir \
-    torch==2.1.0+cu121 torchvision==0.16.0+cu121 \
-    --index-url https://download.pytorch.org/whl/cu121
+# ── App dependencies ───────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    cmake \
+    git \
+    ninja-build \
+    build-essential \
+    libboost-program-options-dev \
+    libboost-graph-dev \
+    libboost-system-dev \
+    libeigen3-dev \
+    libopenimageio-dev \
+    openimageio-tools \
+    libmetis-dev \
+    libgoogle-glog-dev \
+    libgtest-dev \
+    libgmock-dev \
+    libsqlite3-dev \
+    libglew-dev \
+    qt6-base-dev \
+    libqt6opengl6-dev \
+    libqt6openglwidgets6 \
+    libcgal-dev \
+    libceres-dev \
+    libsuitesparse-dev \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libmkl-full-dev \
+    libopenexr-dev \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
 # boto3 required for R2 upload in cloud mode
 RUN pip3 install --no-cache-dir \
-    boto3==1.34.0 \
-    numpy \
-    opencv-python-headless
+    boto3==1.34.0 
 
-# ── Build COLMAP 3.9.1 from source ───────────────────────────────────────────
-ARG COLMAP_VERSION=3.9.1
-RUN git clone --depth 1 --branch ${COLMAP_VERSION} \
-        https://github.com/colmap/colmap.git /tmp/colmap \
+# ── Build Libtorch 2.60/cu12.4 from source ───────────────────────────────────────────────────────
+RUN wget -O /tmp/libtorch.zip https://download.pytorch.org/libtorch/cu124/libtorch-shared-with-deps-2.6.0%2Bcu124.zip \
+    && unzip /tmp/libtorch.zip -d /opt \
+    && rm /tmp/libtorch.zip \
+    && echo "/opt/libtorch/lib" > /etc/ld.so.conf.d/libtorch.conf \
+    && ldconfig
+
+# ── Build COLMAP from source ───────────────────────────────────────────
+RUN mkdir -p /usr/include/opencv4 \
+    && git clone https://github.com/colmap/colmap.git /tmp/colmap \
     && cmake -S /tmp/colmap -B /tmp/colmap/build \
         -GNinja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCUDA_ENABLED=ON \
-        -DCUDA_ARCHITECTURES="89" \
+        -DCUDA_ARCHITECTURES="80;89" \
+        -DCMAKE_CUDA_ARCHITECTURES="80;89" \
         -DTESTS_ENABLED=OFF \
+        -DGUI_ENABLED=OFF \
     && ninja -C /tmp/colmap/build -j$(nproc) \
     && ninja -C /tmp/colmap/build install \
     && rm -rf /tmp/colmap
 
+# ── Build OpenCV from source ───────────────────────────────────────────    
+RUN git clone --depth 1 -b 4.5.4 https://github.com/opencv/opencv.git /tmp/opencv \
+    && mkdir opencv \
+    && cd opencv \
+    && cmake -S /tmp/opencv -B /tmp/opencv/build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DCMAKE_CXX_FLAGS="-D_GLIBCXX_USE_CXX11_ABI=0" \
+    -DBUILD_TESTS=OFF \
+    -DBUILD_PERF_TESTS=OFF \
+    -DBUILD_EXAMPLES=OFF \
+    -DBUILD_opencv_apps=OFF \
+    && cmake --build /tmp/opencv/build -j$(nproc) \
+    && cmake --install /tmp/opencv/build \
+    && rm -rf /tmp/opencv
+
 # ── Build OpenSplat from source ───────────────────────────────────────────────
 ARG OPENSPLAT_VERSION=v1.1.1
-RUN git clone --depth 1 --branch ${OPENSPLAT_VERSION} \
+RUN git clone --depth 1 \
         https://github.com/pierotofy/OpenSplat.git /tmp/opensplat \
-    && TORCH_CMAKE=$(python3 -c "import torch; print(torch.utils.cmake_prefix_path)") \
+    && TORCH_CMAKE="/opt/libtorch" \
     && cmake -S /tmp/opensplat -B /tmp/opensplat/build \
         -GNinja \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_PREFIX_PATH="$TORCH_CMAKE" \
-        -DCUDA_ARCHITECTURES="89" \
+        -DCUDA_ARCHITECTURES="80;89" \
     && ninja -C /tmp/opensplat/build -j$(nproc) \
-    && cp /tmp/opensplat/build/opensplat /usr/local/bin/opensplat \
+    && ninja -C /tmp/opensplat/build install \
     && rm -rf /tmp/opensplat
 
 # ── Verify binaries ───────────────────────────────────────────────────────────
 RUN colmap --version \
     && opensplat --help > /dev/null 2>&1 || true \
-    && ffmpeg -version | head -1 \
-    && python3 -c "import torch; print('CUDA available:', torch.cuda.is_available())"
+    && ffmpeg -version | head -1 
 
 # ── Copy worker scripts ───────────────────────────────────────────────────────
 WORKDIR /worker
