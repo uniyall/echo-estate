@@ -1,0 +1,1 @@
+Node service responsible for Auth, Uplload and Polling 
