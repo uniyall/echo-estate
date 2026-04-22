@@ -7,3 +7,4 @@ videos
 node_modules
 .vscode
 .env
+tmp
