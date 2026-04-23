@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EchoEstate — Backend HLD</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 32px 24px;
+  }
+
+  h1 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 32px;
+  }
+
+  .diagram-wrap {
+    background: #161b27;
+    border: 1px solid #1e2736;
+    border-radius: 16px;
+    padding: 28px 20px 20px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+  }
+
+  svg { display: block; width: 100%; max-width: 720px; margin: 0 auto; }
+
+  /* Node hover */
+  .nd { cursor: pointer; }
+  .nd rect, .nd path { transition: opacity 0.15s; }
+  .nd:hover rect, .nd:hover path { opacity: 0.82; }
+  .nd.active rect { stroke-width: 1.5 !important; filter: brightness(1.08); }
+
+  /* Info panel */
+  .info-panel {
+    background: #161b27;
+    border: 1px solid #1e2736;
+    border-radius: 12px;
+    padding: 16px 20px;
+    min-height: 76px;
+    transition: border-color 0.2s;
+  }
+  .info-panel.lit { border-color: #334155; }
+  .info-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #94a3b8;
+    margin-bottom: 6px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .info-body {
+    font-size: 13px;
+    line-height: 1.7;
+    color: #cbd5e1;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 24px;
+    margin-top: 14px;
+    font-size: 11px;
+    color: #475569;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .leg-line { width: 24px; height: 1px; background: #4b5563; }
+  .leg-dash { width: 24px; height: 1px; border-top: 1px dashed #4b5563; }
+
+  /* Flow table */
+  .flow-section { margin-top: 28px; }
+  .flow-section h2 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #475569;
+    margin-bottom: 14px;
+  }
+  .flow-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 10px;
+  }
+  .flow-card {
+    background: #161b27;
+    border: 1px solid #1e2736;
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .flow-card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #94a3b8;
+    margin-bottom: 4px;
+  }
+  .flow-card-body {
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.6;
+  }
+  .tag {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-right: 4px;
+    letter-spacing: 0.04em;
+  }
+  .tag-node { background: #0d3b38; color: #34d399; }
+  .tag-go   { background: #0c2a4a; color: #60a5fa; }
+  .tag-gpu  { background: #2a1a0e; color: #fb923c; }
+</style>
+</head>
+<body>
+
+<h1>EchoEstate</h1>
+<div class="subtitle">Backend — High Level Design</div>
+
+<div class="diagram-wrap">
+<svg viewBox="0 0 720 480" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="#4b5563" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+  <marker id="arr-d" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+    <path d="M2 1L8 5L2 9" fill="none" stroke="#3b5268" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </marker>
+</defs>
+
+<!-- Tier labels -->
+<text x="14" y="54" fill="#374151" font-size="10" font-family="monospace" letter-spacing="0.1em">CLIENT</text>
+<text x="14" y="168" fill="#374151" font-size="10" font-family="monospace" letter-spacing="0.1em">SERVICES</text>
+<text x="14" y="295" fill="#374151" font-size="10" font-family="monospace" letter-spacing="0.1em">DATA</text>
+<text x="14" y="415" fill="#374151" font-size="10" font-family="monospace" letter-spacing="0.1em">INFRA</text>
+
+<!-- ── FRONTEND ── -->
+<g class="nd" id="nd-frontend" onclick="show('frontend')">
+  <rect x="210" y="24" width="300" height="58" rx="9" fill="#1e1b4b" stroke="#4338ca" stroke-width="0.8"/>
+  <text x="360" y="47" text-anchor="middle" font-size="13" font-weight="600" fill="#a5b4fc" font-family="-apple-system,sans-serif">Next.js 14 frontend</text>
+  <text x="360" y="65" text-anchor="middle" font-size="11" fill="#6366f1" font-family="-apple-system,sans-serif">Vercel · SSR · View Map editor · Svelte viewer</text>
+</g>
+
+<!-- ── NODE.JS ── -->
+<g class="nd" id="nd-nodejs" onclick="show('nodejs')">
+  <rect x="60" y="136" width="258" height="70" rx="9" fill="#0d2e2a" stroke="#10b981" stroke-width="0.8"/>
+  <text x="189" y="161" text-anchor="middle" font-size="13" font-weight="600" fill="#6ee7b7" font-family="-apple-system,sans-serif">Node.js / Express</text>
+  <text x="189" y="179" text-anchor="middle" font-size="11" fill="#34d399" font-family="-apple-system,sans-serif">port 3001 · auth · upload · poll</text>
+  <rect x="66" y="192" width="246" height="1" fill="#0f3d36" rx="0"/>
+  <text x="189" y="204" text-anchor="middle" font-size="10" fill="#1a5c50" font-family="-apple-system,sans-serif">Fly.io</text>
+</g>
+
+<!-- ── GO ── -->
+<g class="nd" id="nd-go" onclick="show('go')">
+  <rect x="402" y="136" width="258" height="70" rx="9" fill="#0c2040" stroke="#3b82f6" stroke-width="0.8"/>
+  <text x="531" y="161" text-anchor="middle" font-size="13" font-weight="600" fill="#93c5fd" font-family="-apple-system,sans-serif">Go / net·http</text>
+  <text x="531" y="179" text-anchor="middle" font-size="11" fill="#60a5fa" font-family="-apple-system,sans-serif">port 8080 · properties · View Map</text>
+  <rect x="408" y="192" width="246" height="1" fill="#0e3060" rx="0"/>
+  <text x="531" y="204" text-anchor="middle" font-size="10" fill="#1e4080" font-family="-apple-system,sans-serif">Fly.io</text>
+</g>
+
+<!-- ── POSTGRESQL ── -->
+<g class="nd" id="nd-postgres" onclick="show('postgres')">
+  <rect x="72" y="264" width="204" height="58" rx="9" fill="#211a0a" stroke="#d97706" stroke-width="0.8"/>
+  <text x="174" y="288" text-anchor="middle" font-size="13" font-weight="600" fill="#fcd34d" font-family="-apple-system,sans-serif">PostgreSQL</text>
+  <text x="174" y="306" text-anchor="middle" font-size="11" fill="#f59e0b" font-family="-apple-system,sans-serif">users · properties · jobs</text>
+</g>
+
+<!-- ── REDIS ── -->
+<g class="nd" id="nd-redis" onclick="show('redis')">
+  <rect x="444" y="264" width="204" height="58" rx="9" fill="#200c0c" stroke="#ef4444" stroke-width="0.8"/>
+  <text x="546" y="288" text-anchor="middle" font-size="13" font-weight="600" fill="#fca5a5" font-family="-apple-system,sans-serif">Redis</text>
+  <text x="546" y="306" text-anchor="middle" font-size="11" fill="#f87171" font-family="-apple-system,sans-serif">sessions · listing cache</text>
+</g>
+
+<!-- ── R2 ── -->
+<g class="nd" id="nd-r2" onclick="show('r2')">
+  <rect x="60" y="386" width="210" height="58" rx="9" fill="#111827" stroke="#6b7280" stroke-width="0.8"/>
+  <text x="165" y="410" text-anchor="middle" font-size="13" font-weight="600" fill="#d1d5db" font-family="-apple-system,sans-serif">Cloudflare R2</text>
+  <text x="165" y="428" text-anchor="middle" font-size="11" fill="#9ca3af" font-family="-apple-system,sans-serif">clips · .ply · floor plans</text>
+</g>
+
+<!-- ── RUNPOD ── -->
+<g class="nd" id="nd-runpod" onclick="show('runpod')">
+  <rect x="450" y="386" width="210" height="58" rx="9" fill="#1a1107" stroke="#f59e0b" stroke-width="0.8"/>
+  <text x="555" y="410" text-anchor="middle" font-size="13" font-weight="600" fill="#fde68a" font-family="-apple-system,sans-serif">RunPod RTX 4090</text>
+  <text x="555" y="428" text-anchor="middle" font-size="11" fill="#fbbf24" font-family="-apple-system,sans-serif">COLMAP · OpenSplat · GPU</text>
+</g>
+
+<!-- ── ARROWS ── -->
+
+<!-- Frontend → Node.js -->
+<path d="M293 82 L189 136" fill="none" stroke="#4b5563" stroke-width="1" marker-end="url(#arr)"/>
+<text x="229" y="101" text-anchor="middle" font-size="10" fill="#4b5563" font-family="-apple-system,sans-serif">upload / auth</text>
+
+<!-- Frontend → Go -->
+<path d="M427 82 L531 136" fill="none" stroke="#4b5563" stroke-width="1" marker-end="url(#arr)"/>
+<text x="487" y="101" text-anchor="middle" font-size="10" fill="#4b5563" font-family="-apple-system,sans-serif">metadata reads</text>
+
+<!-- Node.js → PostgreSQL (vertical) -->
+<path d="M174 206 L174 264" fill="none" stroke="#4b5563" stroke-width="1" marker-end="url(#arr)"/>
+
+<!-- Node.js → Redis (via gap) -->
+<path d="M318 171 L378 171 L378 293 L444 293" fill="none" stroke="#4b5563" stroke-width="1" marker-end="url(#arr)"/>
+
+<!-- Go → PostgreSQL (dashed, via below) -->
+<path d="M402 171 L378 171" fill="none" stroke="#3b5268" stroke-width="0.8" stroke-dasharray="3 3"/>
+<path d="M174 264 L174 243 L370 243" fill="none" stroke="#3b5268" stroke-width="0.8" stroke-dasharray="3 3" marker-end="url(#arr-d)"/>
+<path d="M402 206 L402 243" fill="none" stroke="#3b5268" stroke-width="0.8" stroke-dasharray="3 3"/>
+
+<!-- Go → Redis (vertical) -->
+<path d="M546 206 L546 264" fill="none" stroke="#4b5563" stroke-width="1" marker-end="url(#arr)"/>
+
+<!-- Node.js → R2 (left margin) -->
+<path d="M60 165 L38 165 L38 415 L60 415" fill="none" stroke="#4b5563" stroke-width="1" marker-end="url(#arr)"/>
+
+<!-- Node.js → RunPod (right margin, dashed) -->
+<path d="M318 206 L318 350 L555 350 L555 386" fill="none" stroke="#3b5268" stroke-width="1" stroke-dasharray="4 3" marker-end="url(#arr-d)"/>
+<text x="437" y="341" text-anchor="middle" font-size="10" fill="#3b5268" font-family="-apple-system,sans-serif">dispatch · poll</text>
+
+<!-- RunPod → R2 (.ply upload) -->
+<path d="M450 415 L270 415" fill="none" stroke="#4b5563" stroke-width="1" marker-end="url(#arr)"/>
+<text x="360" y="408" text-anchor="middle" font-size="10" fill="#4b5563" font-family="-apple-system,sans-serif">upload .ply</text>
+
+<!-- Note -->
+<text x="360" y="462" text-anchor="middle" font-size="10" fill="#2d3748" font-family="-apple-system,sans-serif">── sync · · · async/dispatch &nbsp;&nbsp;&nbsp; * dashed = Go also reads/writes PostgreSQL directly</text>
+</svg>
+</div>
+
+<div class="info-panel" id="panel">
+  <div class="info-title" id="ptitle">Select a block</div>
+  <div class="info-body" id="pbody">EchoEstate runs two backend microservices on Fly.io. Node.js handles auth and the upload/dispatch pipeline. Go serves all property, clip, and View Map metadata. Both share PostgreSQL and Redis. Click any block for full details.</div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="leg-line"></div><span>synchronous API call</span></div>
+  <div class="legend-item"><div class="leg-dash"></div><span>async dispatch / polling</span></div>
+</div>
+
+<div class="flow-section">
+  <h2>Per-clip request lifecycle</h2>
+  <div class="flow-grid">
+    <div class="flow-card">
+      <div class="flow-card-title">① Agent uploads clip</div>
+      <div class="flow-card-body"><span class="tag tag-node">Node.js</span>Receives multipart form (label + MP4/MOV). Streams to R2 via AWS SDK. Creates scene_clip record via Go API (status: queued).</div>
+    </div>
+    <div class="flow-card">
+      <div class="flow-card-title">② RunPod dispatch</div>
+      <div class="flow-card-body"><span class="tag tag-node">Node.js</span>Calls RunPod API to launch RTX 4090 Pod. Passes R2_CLIP_URL + CLIP_ID + STEPS as env vars. Updates clip status to processing.</div>
+    </div>
+    <div class="flow-card">
+      <div class="flow-card-title">③ GPU pipeline</div>
+      <div class="flow-card-body"><span class="tag tag-gpu">RunPod</span>ffmpeg → quality gate → COLMAP SfM → quality gate → OpenSplat (10k–30k steps) → upload .ply to R2 → Pod terminates.</div>
+    </div>
+    <div class="flow-card">
+      <div class="flow-card-title">④ Polling loop</div>
+      <div class="flow-card-body"><span class="tag tag-node">Node.js</span>Every 30s, checks RunPod job status. On completion, retrieves .ply R2 URL. Calls PATCH /clips/:id on Go to mark status ready + store ply_url.</div>
+    </div>
+    <div class="flow-card">
+      <div class="flow-card-title">⑤ View Map update</div>
+      <div class="flow-card-body"><span class="tag tag-go">Go</span>Clip now has status: ready. Frontend polls GET /clips/:id/status. Agent sees new bubble appear on the View Map canvas, positions it, saves layout.</div>
+    </div>
+    <div class="flow-card">
+      <div class="flow-card-title">⑥ Buyer loads splat</div>
+      <div class="flow-card-body"><span class="tag tag-go">Go</span>GET /properties/:id/viewmap returns layout JSON. Buyer clicks hotspot → frontend fetches .ply from R2 signed URL → Svelte + Three.js renders inline.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const D = {
+  frontend: [
+    'Next.js 14 — Vercel',
+    'SSR listing pages (GET /properties), property detail pages, the drag-and-drop View Map editor (React DnD or pointer events), the Svelte + Three.js 3D viewer panel, multi-clip upload form with per-clip progress bars, and auth UI. Talks to Node.js :3001 for upload and auth; talks to Go :8080 for all metadata reads and View Map persistence. Protected routes guarded by JWT cookie check.'
+  ],
+  nodejs: [
+    'Node.js / Express — port 3001 (Fly.io)',
+    'POST /auth/register+login+logout (JWT in HTTP-only cookie, sessions in Redis). POST /upload/clip: streams multipart MP4/MOV to Cloudflare R2 via AWS SDK v3, calls Go to create clip record, then calls RunPod API to launch RTX 4090 Pod with env vars R2_CLIP_URL + CLIP_ID + STEPS. GET /upload/clip/:id/status: proxies Go clip status. POST /upload/floorplan: streams image to R2. Background: 30-second setInterval polls RunPod API per active job — on completion calls PATCH /clips/:id on Go with ply_url and status ready. Surfaces quality gate failures as user-friendly errors.'
+  ],
+  go: [
+    'Go / net·http — port 8080 (Fly.io)',
+    'GET /properties (cursor pagination, filter by location/price/bedrooms, listing cache via Redis). GET+POST /properties/:id, PATCH /properties/:id. GET+POST /properties/:id/clips, PATCH /clips/:id (called by Node.js polling). GET+PUT /properties/:id/viewmap (stores bubble positions as normalised x/y JSON). POST+DELETE /bookmarks. GET /health. All DB access via pgxpool for concurrent-safe connection pooling. Redis used for listing cache (60s TTL) and job status cache to reduce DB write load.'
+  ],
+  postgres: [
+    'PostgreSQL — primary database (shared by both services)',
+    'Tables: users (id, email, password_hash, created_at) · properties (id, user_id, title, address, price, bedrooms, thumbnail_url) · scene_clips (id, property_id, label, status, r2_clip_url, ply_url, created_at) — status enum: queued | processing | ready | failed · gpu_jobs (id, clip_id, runpod_job_id, last_polled_at, steps) · view_map_layouts (id, property_id, floor_plan_url, layout_json, updated_at) — layout_json stores [{clip_id, label, x, y}] with normalised coords · bookmarks (user_id, property_id, created_at) composite PK.'
+  ],
+  redis: [
+    'Redis — cache + session store',
+    '3 usage patterns: (1) Session store — Node.js writes JWT session data on login (TTL matches token expiry), reads on every protected route hit. (2) Listing cache — Go caches paginated /properties responses with a 60s TTL; invalidated when a property is created or updated. (3) Job status cache — Node.js polling loop caches last-known RunPod job state to skip redundant DB writes when status is unchanged between polls.'
+  ],
+  r2: [
+    'Cloudflare R2 — object storage (zero egress fees)',
+    'Key structure: clips/{clip_id}/raw.mp4 for uploaded scene clips (up to 200 MB, streamed via multipart upload from Node.js). clips/{clip_id}/output.ply for Gaussian Splat output uploaded directly by the RunPod worker on completion. floorplans/{property_id}/{uuid}.jpg for floor plan images. Signed URLs (15-min TTL) generated server-side for secure RunPod pod clip download and for buyer .ply access from the frontend viewer.'
+  ],
+  runpod: [
+    'RunPod RTX 4090 GPU worker — on-demand Pod per clip',
+    'Launched via RunPod API with env: R2_CLIP_URL, CLIP_ID, STEPS. Pipeline: (1) Download clip from R2 signed URL. (2) ffmpeg: extract frames at 3–5 FPS scaled to 960×540, cap at 100 frames. (3) Quality gate: exit Failed if <30 frames. (4) COLMAP: feature extraction → exhaustive/sequential matching → sparse reconstruction → camera pose estimation. (5) Quality gate: exit Failed if <30 registered images. (6) OpenSplat: train Gaussian blobs at 10k–30k steps (target <15 min total). (7) Upload output.ply to R2 via boto3. (8) Pod terminates immediately. Cost: ~$0.20 per clip on RTX 4090 at $0.74/hr.'
+  ],
+};
+let active = null;
+function show(k) {
+  const el = document.getElementById('nd-' + k);
+  if (active && active !== el) active.classList.remove('active');
+  el.classList.add('active');
+  active = el;
+  document.getElementById('ptitle').textContent = D[k][0];
+  document.getElementById('pbody').textContent = D[k][1];
+  document.getElementById('panel').classList.add('lit');
+}
+</script>
+</body>
+</html>
