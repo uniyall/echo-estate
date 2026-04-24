@@ -24,7 +24,7 @@ func main() {
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 
-	handlers.Register(e)
+	handlers.Register(e, db.DB)
 
 	port := os.Getenv("GO_PORT")
 	if port == "" {
