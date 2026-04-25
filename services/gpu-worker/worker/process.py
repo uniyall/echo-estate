@@ -144,7 +144,7 @@ def upload_to_r2(ply_path: str, property_id: str, cameras_json_path: str = None)
     status("upload", "Uploading splat.ply to R2", {"bucket": bucket, "key": ply_key})
     file_size_mb = os.path.getsize(ply_path) / (1024 * 1024)
     s3.upload_file(ply_path, bucket, ply_key)
-    uploads["r2_url"] = f"{endpoint}/{bucket}/{ply_key}"
+    uploads["r2_url"] = f"{endpoint}/{ply_key}"
     uploads["size_mb"] = round(file_size_mb, 1)
 
     if cameras_json_path and os.path.exists(cameras_json_path):

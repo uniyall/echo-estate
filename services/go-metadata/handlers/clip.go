@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"echoestate/go-api/models"
@@ -62,6 +63,7 @@ func (h *ClipHandler) Create(c echo.Context) error {
 	}
 
 	if err := h.repo.Create(clip); err != nil {
+		fmt.Println(err.Error())
 		return c.JSON(http.StatusInternalServerError, errResponse("failed to create clip"))
 	}
 

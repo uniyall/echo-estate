@@ -12,7 +12,7 @@ function runpodHeaders() {
 async function submitJob(r2ClipUrl, clipId, steps = 10000) {
   const { data } = await axios.post(
     `${RUNPOD_BASE}/run`,
-    { input: { r2_clip_url: r2ClipUrl, clip_id: clipId, steps } },
+    { input: { r2_video_url: r2ClipUrl, property_id: clipId, steps } },
     { headers: runpodHeaders() },
   );
   return data.id;
@@ -39,7 +39,7 @@ async function pollJobs() {
       }
 
       if (status === 'COMPLETED') {
-        await updateClipInMetadata(clipId, { status: 'ready', ply_url: output?.ply_url });
+        await updateClipInMetadata(clipId, { status: 'ready', ply_url: output?.r2_url });
         await db.query('UPDATE gpu_jobs SET last_polled_at = NOW() WHERE runpod_job_id = $1', [jobId]);
         await redis.srem('pending_runpod_jobs', jobId);
         await redis.del(`gpu_job:${jobId}`);
