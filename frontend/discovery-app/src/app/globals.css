@@ -3,25 +3,39 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-terracotta: #d97757;
+  --color-terracotta-dark: #b85f42;
+  --color-sand: #f5efe7;
+  --color-cream: #faf8f5;
+  --color-beige-light: #ebe1d4;
+  --color-beige: #d4c4b0;
+  --color-beige-dark: #c4b09d;
+  --color-beige-divider: #e5d9c9;
+  --color-text-primary: #3d3028;
+  --color-text-heading: #2a1f15;
+  --color-text-secondary: #6b5d4f;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-sand);
+  color: var(--color-text-primary);
+  font-family: var(--font-crimson-pro), serif;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.btn-terracotta {
+  background-color: #d97757;
+  transition: background-color 0.2s ease;
+}
+.btn-terracotta:hover {
+  background-color: #b85f42;
 }

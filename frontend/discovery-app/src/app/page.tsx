@@ -1,101 +1,215 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import PropertyCard from "@/components/PropertyCard";
+import { PROPERTIES } from "@/lib/properties";
+
+const INITIAL_COUNT = 6;
+const LOAD_MORE_COUNT = 3;
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "14px 18px",
+  border: "2px solid #c4b09d",
+  borderRadius: "8px",
+  fontSize: "16px",
+  fontFamily: "var(--font-crimson-pro), serif",
+  backgroundColor: "#faf8f5",
+  color: "#3d3028",
+  outline: "none",
+  boxSizing: "border-box",
+};
+
+export default function HomePage() {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [bedrooms, setBedrooms] = useState("");
+  const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  const filtered = PROPERTIES.filter((prop) => {
+    if (
+      searchTerm &&
+      !prop.address.toLowerCase().includes(searchTerm.toLowerCase()) &&
+      !prop.state.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+      return false;
+    if (minPrice && prop.price < parseInt(minPrice)) return false;
+    if (maxPrice && prop.price > parseInt(maxPrice)) return false;
+    if (bedrooms && prop.bedrooms < parseInt(bedrooms)) return false;
+    return true;
+  });
+
+  useEffect(() => {
+    setVisibleCount(INITIAL_COUNT);
+  }, [searchTerm, minPrice, maxPrice, bedrooms]);
+
+  const visible = filtered.slice(0, visibleCount);
+  const remaining = Math.max(0, filtered.length - visibleCount);
+
+  function handleLoadMore() {
+    setIsLoadingMore(true);
+    setTimeout(() => {
+      setVisibleCount((v) => v + LOAD_MORE_COUNT);
+      setIsLoadingMore(false);
+    }, 300);
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div
+      style={{
+        minHeight: "100vh",
+        backgroundColor: "#f5efe7",
+        fontFamily: "var(--font-crimson-pro), serif",
+        color: "#3d3028",
+      }}
+    >
+      {/* Header */}
+      <header
+        style={{
+          padding: "32px 48px",
+          backgroundColor: "#d97757",
+          color: "#faf8f5",
+          borderBottom: "4px solid #b85f42",
+        }}
+        className="px-6 py-6 md:px-12 md:py-8"
+      >
+        <h1
+          style={{
+            fontFamily: "var(--font-lora), serif",
+            fontSize: "clamp(28px, 4vw, 42px)",
+            fontWeight: 700,
+            margin: 0,
+            letterSpacing: "-0.02em",
+            color: "#faf8f5",
+          }}
+        >
+          Echo Estate
+        </h1>
+        <p
+          style={{
+            margin: "8px 0 0 0",
+            fontSize: "clamp(14px, 2vw, 18px)",
+            opacity: 0.95,
+            color: "#faf8f5",
+          }}
+        >
+          Find your natural home
+        </p>
+      </header>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      {/* Search & Filter */}
+      <div
+        style={{
+          padding: "32px 48px",
+          backgroundColor: "#ebe1d4",
+          borderBottom: "2px solid #d4c4b0",
+        }}
+        className="px-6 py-6 md:px-12 md:py-8"
+      >
+        <div
+          style={{ maxWidth: "1200px" }}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr] gap-4"
+        >
+          <input
+            type="text"
+            placeholder="Search by location..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={inputStyle}
+          />
+          <input
+            type="number"
+            placeholder="Min price"
+            value={minPrice}
+            onChange={(e) => setMinPrice(e.target.value)}
+            style={inputStyle}
+          />
+          <input
+            type="number"
+            placeholder="Max price"
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(e.target.value)}
+            style={inputStyle}
+          />
+          <select
+            value={bedrooms}
+            onChange={(e) => setBedrooms(e.target.value)}
+            style={inputStyle}
           >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <option value="">Any beds</option>
+            <option value="1">1+ bed</option>
+            <option value="2">2+ beds</option>
+            <option value="3">3+ beds</option>
+            <option value="4">4+ beds</option>
+          </select>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </div>
+
+      {/* Property Grid */}
+      <div style={{ padding: "48px" }} className="px-6 py-8 md:px-12 md:py-12">
+        {filtered.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "64px 0",
+              color: "#6b5d4f",
+              fontSize: "18px",
+              fontFamily: "var(--font-crimson-pro), serif",
+            }}
+          >
+            No properties found matching your search.
+          </div>
+        ) : (
+          <>
+            <div
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8"
+              style={{ maxWidth: "1400px", margin: "0 auto" }}
+            >
+              {visible.map((property, idx) => (
+                <PropertyCard
+                  key={property.id}
+                  property={property}
+                  delay={idx}
+                />
+              ))}
+            </div>
+
+            {remaining > 0 && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  marginTop: "40px",
+                }}
+              >
+                <button
+                  onClick={handleLoadMore}
+                  disabled={isLoadingMore}
+                  style={{
+                    padding: "14px 32px",
+                    backgroundColor: isLoadingMore ? "#b85f42" : "#d97757",
+                    color: "#faf8f5",
+                    border: "none",
+                    borderRadius: "10px",
+                    fontSize: "17px",
+                    fontWeight: 600,
+                    fontFamily: "var(--font-lora), serif",
+                    cursor: isLoadingMore ? "default" : "pointer",
+                    transition: "background-color 0.2s ease",
+                    opacity: isLoadingMore ? 0.8 : 1,
+                  }}
+                >
+                  {isLoadingMore
+                    ? "Loading..."
+                    : `Load More (${remaining} remaining)`}
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
