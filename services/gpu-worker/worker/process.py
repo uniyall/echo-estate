@@ -117,16 +117,18 @@ def upload_to_r2(ply_path: str, property_id: str, cameras_json_path: str = None)
     Imported lazily so local mode never requires boto3.
 
     Required env vars:
-        R2_BUCKET             — e.g. "echoestate-assets"
-        R2_ENDPOINT_URL       — e.g. "https://<account_id>.r2.cloudflarestorage.com"
-        AWS_ACCESS_KEY_ID     — R2 API token key ID
-        AWS_SECRET_ACCESS_KEY — R2 API token secret
+        R2_BUCKET              — e.g. "echoestate-assets"
+        R2_ENDPOINT_URL        — e.g. "https://<account_id>.r2.cloudflarestorage.com"
+        AWS_ACCESS_KEY_ID      — R2 API token key ID
+        AWS_SECRET_ACCESS_KEY  — R2 API token secret
+        R2_PUBLIC_ENDPOINT_URL - e.g. "https://pub-<pub_id>.r2.dev"
     """
     import boto3
     from botocore.client import Config
 
     bucket   = os.environ["R2_BUCKET"]
     endpoint = os.environ["R2_ENDPOINT_URL"]
+    pub_endpoint = os.environ["R2_PUBLIC_ENDPOINT_URL"]
 
     s3 = boto3.client(
         "s3",
@@ -144,14 +146,14 @@ def upload_to_r2(ply_path: str, property_id: str, cameras_json_path: str = None)
     status("upload", "Uploading splat.ply to R2", {"bucket": bucket, "key": ply_key})
     file_size_mb = os.path.getsize(ply_path) / (1024 * 1024)
     s3.upload_file(ply_path, bucket, ply_key)
-    uploads["r2_url"] = f"{endpoint}/{ply_key}"
+    uploads["r2_url"] = f"{pub_endpoint}/{ply_key}"
     uploads["size_mb"] = round(file_size_mb, 1)
 
     if cameras_json_path and os.path.exists(cameras_json_path):
         cam_key = f"splats/{property_id}/cameras.json"
         status("upload", "Uploading cameras.json to R2", {"bucket": bucket, "key": cam_key})
         s3.upload_file(cameras_json_path, bucket, cam_key)
-        uploads["cameras_json_r2_url"] = f"{endpoint}/{bucket}/{cam_key}"
+        uploads["cameras_json_r2_url"] = f"{pub_endpoint}/{cam_key}"
 
     uploads["upload_time_s"] = round(time.time() - t0, 1)
     status("upload", "Upload complete", uploads)
