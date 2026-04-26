@@ -19,7 +19,8 @@ def handler(job):
     )
 
     if result.returncode != 0:
-        return {"success": False, "error": result.stdout[-2000:]}
+        combined = (result.stdout + "\n--- STDERR ---\n" + result.stderr).strip()
+        return {"success": False, "error": combined[-3000:]}
 
     # Parse the final JSON line emitted by process.py
     import json

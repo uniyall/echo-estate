@@ -387,6 +387,15 @@ def main():
     max_dim     = args.max_dim    or int(os.getenv("MAX_DIM",  "960"))
     max_frames  = args.max_frames or int(os.getenv("MAX_FRAMES", "150"))
 
+    # ── Validate required cloud env vars early ────────────────────────────────
+    if mode == "cloud":
+        required = ["R2_BUCKET", "R2_ENDPOINT_URL", "R2_PUBLIC_ENDPOINT_URL",
+                    "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+        missing = [k for k in required if not os.getenv(k)]
+        if missing:
+            status("error", f"Missing required environment variables: {', '.join(missing)}")
+            sys.exit(1)
+
     # ── Resolve video path ─────────────────────────────────────────────────────
     if mode == "local":
         if not args.video:
