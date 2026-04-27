@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import PropertyCard from "@/components/PropertyCard";
 import { PROPERTIES } from "@/lib/properties";
 
@@ -68,35 +69,90 @@ export default function HomePage() {
       {/* Header */}
       <header
         style={{
-          padding: "32px 48px",
           backgroundColor: "#d97757",
           color: "#faf8f5",
           borderBottom: "4px solid #b85f42",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "16px",
+          flexWrap: "wrap",
         }}
         className="px-6 py-6 md:px-12 md:py-8"
       >
-        <h1
+        <div>
+          <h1
+            style={{
+              fontFamily: "var(--font-lora), serif",
+              fontSize: "clamp(28px, 4vw, 42px)",
+              fontWeight: 700,
+              margin: 0,
+              letterSpacing: "-0.02em",
+              color: "#faf8f5",
+            }}
+          >
+            Echo Estate
+          </h1>
+          <p
+            style={{
+              margin: "8px 0 0 0",
+              fontSize: "clamp(14px, 2vw, 18px)",
+              opacity: 0.95,
+              color: "#faf8f5",
+            }}
+          >
+            Find your natural home
+          </p>
+        </div>
+        <Link
+          href="/auth/login"
           style={{
             fontFamily: "var(--font-lora), serif",
-            fontSize: "clamp(28px, 4vw, 42px)",
-            fontWeight: 700,
-            margin: 0,
-            letterSpacing: "-0.02em",
+            fontSize: "15px",
+            fontWeight: 600,
+            letterSpacing: "0.02em",
             color: "#faf8f5",
+            backgroundColor: "transparent",
+            border: "1.5px solid rgba(250, 248, 245, 0.7)",
+            borderRadius: "2px",
+            padding: "12px 22px",
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "10px",
+            textDecoration: "none",
+            whiteSpace: "nowrap",
+            transition: "background-color 0.18s ease, border-color 0.18s ease",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+              "rgba(250, 248, 245, 0.12)";
+            (e.currentTarget as HTMLAnchorElement).style.borderColor =
+              "#faf8f5";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLAnchorElement).style.backgroundColor =
+              "transparent";
+            (e.currentTarget as HTMLAnchorElement).style.borderColor =
+              "rgba(250, 248, 245, 0.7)";
           }}
         >
-          Echo Estate
-        </h1>
-        <p
-          style={{
-            margin: "8px 0 0 0",
-            fontSize: "clamp(14px, 2vw, 18px)",
-            opacity: 0.95,
-            color: "#faf8f5",
-          }}
-        >
-          Find your natural home
-        </p>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 21V11l9-7 9 7v10" />
+            <path d="M9 21v-6h6v6" />
+          </svg>
+          <span>Dealer Login</span>
+        </Link>
       </header>
 
       {/* Search & Filter */}
