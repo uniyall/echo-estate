@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import PropertyCard from "@/components/PropertyCard";
 import { PROPERTIES } from "@/lib/properties";
@@ -28,6 +28,7 @@ export default function HomePage() {
   const [bedrooms, setBedrooms] = useState("");
   const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const filtered = PROPERTIES.filter((prop) => {
     if (
@@ -47,15 +48,28 @@ export default function HomePage() {
   }, [searchTerm, minPrice, maxPrice, bedrooms]);
 
   const visible = filtered.slice(0, visibleCount);
-  const remaining = Math.max(0, filtered.length - visibleCount);
+  const hasMore = visibleCount < filtered.length;
 
-  function handleLoadMore() {
-    setIsLoadingMore(true);
-    setTimeout(() => {
-      setVisibleCount((v) => v + LOAD_MORE_COUNT);
-      setIsLoadingMore(false);
-    }, 300);
-  }
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore) {
+          setIsLoadingMore(true);
+          setTimeout(() => {
+            setVisibleCount((v) => v + LOAD_MORE_COUNT);
+            setIsLoadingMore(false);
+          }, 300);
+        }
+      },
+      { rootMargin: "200px" }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore]);
 
   return (
     <div
@@ -232,36 +246,49 @@ export default function HomePage() {
               ))}
             </div>
 
-            {remaining > 0 && (
+            {/* Sentinel triggers next load when scrolled into view */}
+            <div ref={sentinelRef} style={{ height: "1px" }} />
+
+            {isLoadingMore && (
               <div
                 style={{
                   display: "flex",
                   justifyContent: "center",
-                  marginTop: "40px",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginTop: "32px",
+                  color: "#6b5d4f",
+                  fontFamily: "var(--font-crimson-pro), serif",
+                  fontSize: "16px",
                 }}
               >
-                <button
-                  onClick={handleLoadMore}
-                  disabled={isLoadingMore}
+                <span
                   style={{
-                    padding: "14px 32px",
-                    backgroundColor: isLoadingMore ? "#b85f42" : "#d97757",
-                    color: "#faf8f5",
-                    border: "none",
-                    borderRadius: "10px",
-                    fontSize: "17px",
-                    fontWeight: 600,
-                    fontFamily: "var(--font-lora), serif",
-                    cursor: isLoadingMore ? "default" : "pointer",
-                    transition: "background-color 0.2s ease",
-                    opacity: isLoadingMore ? 0.8 : 1,
+                    width: "18px",
+                    height: "18px",
+                    border: "2px solid #d4c4b0",
+                    borderTopColor: "#d97757",
+                    borderRadius: "50%",
+                    display: "inline-block",
+                    animation: "spin 0.7s linear infinite",
                   }}
-                >
-                  {isLoadingMore
-                    ? "Loading..."
-                    : `Load More (${remaining} remaining)`}
-                </button>
+                />
+                Finding more homes…
               </div>
+            )}
+
+            {!hasMore && filtered.length > 0 && (
+              <p
+                style={{
+                  textAlign: "center",
+                  marginTop: "40px",
+                  color: "#6b5d4f",
+                  fontFamily: "var(--font-crimson-pro), serif",
+                  fontSize: "16px",
+                }}
+              >
+                You&apos;ve seen all {filtered.length} homes
+              </p>
             )}
           </>
         )}
